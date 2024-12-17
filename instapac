@@ -1,0 +1,268 @@
+#! /bin/zsh
+
+# Install any package on any OS
+
+# TODO blacklist env var of packages the each user doesn't want managed by pacrat
+
+autoload -U colors; colors
+
+clonesdir=${PACRAT_CLONES-~/src/clones}
+bindir=${PACRAT_BIN-~/.local/bin}
+
+config=example.zsh
+config=nest.ini
+
+# Add path to any shell
+# echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.$(basename $SHELL)rc && exec $SHELL
+
+print "Sourcing config file: $config"
+# source $config
+# print ${(v)bbin}
+
+# recipes=( $(grep '^[a-z_]\+=(' $config | sed 's/=(.*//') )
+recipes=( $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//'
+          ) )
+# print recipes: $recipes
+
+
+redhats=( redhat fedora centos )
+debians=( debian ubuntu kali purism tails )
+arches=(  arch manjaro )
+
+if ! [[ -d $clonesdir ]]
+then print "Clones dir does not exist yet; creating $clonesdir (PACRAT_CLONES)"
+     mkdir -p $clonesdir
+fi
+
+dbg() { [[ -n $PACRAT_DEBUG ]] && print "$fg[cyan]DEBUG:" $@ $reset_color || true }
+
+# Set up top-level OS knowledge:
+# uname os (uos), LSB OS (lsbos), OS family (osfam), package manager (mgrcmd)
+setosfam () {
+     uos=$(uname -o) # GNU/Linux, Darwin, FreeBSD
+     osfam='unknown'
+     lsbos=$(lsb_release -is)
+     if type lsb_release >/dev/null
+     then case $lsbos in
+               RedHat|Fedora|Centos)
+                    osfam='redhat' mgr=dnf    mgrcmd='sudo dnf install' ;;
+               Debian|Ubunbu|Kali|Purism|Tails)
+                    osfam='debian' mgr=apt    mgrcmd='sudo apt install' ;;
+               Arch|Manjaro)
+                    osfam='arch'   mgr=pacman mgrcmd='pacman -S' ;;
+          esac
+     elif [[ $uos = 'Darwin' ]]
+     then osfam='macos' mgr=brew mgrcmd='brew install'
+     elif [[ $uos =~ '.*BSD' ]]
+     then osfam='bsd'   mgr=pkg  mgrcmd='pkg install'
+     else print "$fg[red]ERROR: unable to determine OS$reset_color"
+          exit 1
+     fi
+}
+
+getver () { $1 --version | tail -1 | sed -r 's/.* v?([0-9._-]+) ?.*/\1/' }
+
+# vercompare $vermin $cmd        $verget
+# vercompare '1.3.1' 'clj-kondo' 'clj-kondo --version'
+vercompare () {
+     if [[ -z $1 ]]; then dbg 'no vermin present; skipping version comparison check'; return; fi
+     local vermin=$1 cmd=$2 verget=$3
+     dbg vermin: $vermin :: cmd: cmd :: verget: $verget ::
+     vermin=$( sed 's/[v ]//g' <<< $vermin ) # remove any v or spaces user may have used
+     dbg verget: $verget
+     if [[ -n $verget ]]
+     then vercur=$( eval $verget )
+     else vercur=$( eval $cmd --version |
+                         sed -r -e 's/.* v?([0-9._-]+) ?.*/\1/' -e '/^[[:space:]]*$/d' |
+                         tail -1 )
+     fi
+     dbg vers: $vercur :: $vermin ::
+     vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
+     vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
+     for i in {1..$#vercura}; do
+          dbg comparing: $vercura[$i] :: $vermina[$i] ::
+          # Default each to zero to accommodate for diff lengths
+          if (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
+          then dbg 'current version is newer than min'
+               return
+          elif (( $vercura[$i] == $vermina[$i] ))
+          then dbg eq
+               continue
+          elif (( $vercura[$i] < $vermina[$i] ))
+          then dbg 'current version outdated; need upgrade'
+               return 1
+          fi
+     done
+     dbg 'versions appear to match'
+}
+
+# setdefaultmgr () {}
+
+process () {
+     local package=$1 # package will be overridden in most cases
+     local lowername=${1:gs/-/_}
+     # print lowername: $lowername :: package: $package :: osfam: $osfam
+     local -A rec=( ${(kv)${(P)lowername}} )
+     local doc=$rec[doc]
+
+     # Banner
+     if [[ -n $doc ]]; then local docstr=" :: $doc"; fi
+     print "\n$fg_bold[yellow]${(U)package}$reset_color$fg[yellow]$docstr$reset_color"
+     if [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
+
+     if [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]
+     then print "$fg[magenta]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
+          return
+     fi
+     # TODO Parse depcmds as csv
+     if [[ -n $rec[depcmds] ]] && ! type $rec[depcmds] >/dev/null
+     then print "$fg[red]ERROR: Unable to locate dependency: $rec[depcmds]; not installing $package$reset_color"
+          return
+     fi
+     # Determine cmd
+     if [[ -n $rec[cmd] ]]; then cmd=$rec[cmd]; else cmd=$package; fi
+
+     # Check if already installed
+     if ! type $cmd >/dev/null
+     then local action=install doinstall=true
+     elif ! vercompare "$rec[vermin]" "$cmd" "$rec[verget]"
+     then local action=upgrade doupgrade=true
+     fi
+
+     if ! [[ -v action ]]
+     then print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
+          # print "$fg[green]✓$reset_color No install or upgrade needed for $package"
+          return
+
+     # if true
+     else
+          if [[ $action == install ]]
+          then print "$fg[red]!$reset_color $package not installed; trying $bold_color${(U)action}$reset_color…"
+          fi
+          if [[ $action == upgrade ]]
+          then print "$fg[red]☀$reset_color $package already installed; trying $bold_color${(U)action}$reset_color…"
+          fi
+
+          ### OS PACKAGE MANAGER (dnf, brew, etc)
+          if   [[ $osfam == macos ]] && [[ -n $rec[brew] ]]
+          then # if [[ -n $rec[brew] ]]; then package=$rec[brew]; fi
+               print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color ${bold_color}brew $action $package$reset_color"
+               # brew $action $package
+          elif [[ $osfam == redhat ]] && [[ -n $rec[dnf] ]]
+          then print "$fg[cyan][DNF] Doing $action $package with dnf$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color ${bold_color}sudo dnf $action $package$reset_color"
+               # sudo dnf $action $package
+          # TODO ubuntu, arch, bsd
+
+          ### EGET
+          elif [[ -n $rec[eget] ]]
+          then print "$fg[cyan][EGET] Installing newest $rec[eget] with eget$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color ${bold_color}EGET_BIN= eget $rec[eget]$reset_color"
+               # EGET_BIN= eget $rec[eget]
+
+          ### CLONE
+          elif [[ -n $rec[clone] ]]
+          then local dest=$clonesdir/${rec[clone]:t}
+               if   [[ -d $dest ]]
+               then print "$fg[cyan][CLONE] Already have clone present; pulling$reset_color"
+                    print "$fg_bold[yellow]>>>$reset_color ${bold_color}git pull$reset_color"
+                    # git pull
+               else
+                    print "$fg[cyan][CLONE] $rec[clone] --TO--> $dest$reset_color"
+                    print "$fg_bold[yellow]>>>$reset_color ${bold_color}git clone $rec[eget]$reset_color"
+                    # cd $dest && git clone $rec[eget]
+               fi
+
+               # if   [[ -n $rec[install] ]]
+               # then print "Doing install: $rec[install]"
+               #      # eval $rec[install]
+               # fi
+
+          ### GENERIC OS SPEC (instead of bbin, gem, pip, npm, etc)
+          elif [[ -n $rec[uni] ]]
+          then print "$fg[cyan][UNI] Running universal installation$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color ${bold_color}$rec[uni]$reset_color"
+               # eval $rec[uni]
+
+          ### DEFAULT UNSPECIFIED
+          else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color ${bold_color}$mgrcmd $package$reset_color"
+               # eval "$mgrcmd $package"
+
+
+          # elif [[ -f /etc/os-release ]]
+          # then linos=$( sed -r --silent 's/^ID=(.*)/\1/p' /etc/os-release )
+          #      # if   (( $redhats[(I)$linos] )) && [[ -n $rec[dnf] ]] || [[ -n $rec[pkg] ]]
+          #      if   (( $redhats[(I)$linos] ))
+          #      then if   [[ -n $rec[dnf] ]]; then package=$rec[dnf]
+          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
+          #           fi
+          #           print "Installing $package with dnf...."
+          #           print '  ' dnf install $package
+          #      elif (( $debians[(I)$linos] ))
+          #      then if   [[ -n $rec[apt] ]]; then package=$rec[apt]
+          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
+          #           fi
+          #           print "Installing $package with apt...."
+          #           print '  ' apt-get install $package
+          #      elif (( $arches[(I)$linos] ))
+          #      then if   [[ -n $rec[pacman] ]]; then package=$rec[pacman]
+          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
+          #           fi
+          #           print "Installing $package with pacman...."
+          #           print '  ' pacman -S $package
+          #      fi
+          # else print 'ERROR: Not a recognized OS'
+          #      exit 1
+
+          fi
+
+          # Run post-op
+          if [[ -n $rec[postop] ]]
+          then print "$fg[cyan][POSTOP] Doing post-operation$reset_color"
+               print "$fg_bold[yellow]>>>$reset_color $rec[postop]"
+          fi
+
+          # TODO Handle $rec[path]
+          # Maybe check/prompt for direnv vs .shellrc file
+          if [[ -n $rec[path] ]]
+             then print "$fg[yellow]ⓘ Add to your path:$reset_color"
+                  print 'export PATH="$PATH:$HOME/.local/bin" >>' ~/.$(basename $SHELL)rc '&& exec' $SHELL
+          fi
+
+          if [[ -n $rec[instruct] ]]
+          then print "INSTRUCTIONS: $rec[instruct]"
+          fi
+
+          print "$fg_bold[green]✓$reset_color Successfully completed $action"
+
+     fi
+}
+
+convert_toml () {
+     shstr=$(
+          sed -r '/^#+ /d' $config |
+               sed -r 's/ # .*//' | # fully remove comment lines
+               sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n/\n)\n\n/g' | # multiline sub with ending )
+               sed -r -e 's/\[([a-z0-9_-]+)\]/declare  \1\\=(\nname \1/'  | # add declare and line after with lowername
+               sed -r -e '/^declare  /{s/-/_/g}'  | # convert - to _
+               sed -r -e 's/^declare  /declare -A /'  | # add a -A
+               sed -r -e '$ a) # THE END'  | # append final )
+               sed -r -e 's/^([a-z0-9_-]+) *= */\1 /' # |
+          )
+     print -- $shstr
+}
+
+main () {
+     setosfam
+     print "Detected OS Family: $osfam, system package manager: $mgr"
+     # convert_toml # remove, for debugging
+     eval "$(convert_toml)"
+     # print bbin: $bbin[doc]
+     for rec in $recipes
+     do process $rec
+     done
+}
+
+main
