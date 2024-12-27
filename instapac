@@ -4,13 +4,25 @@
 
 # TODO blacklist env var of packages the each user doesn't want managed by pacrat
 
+# TODO create new version of nest.ini for CC with inline docs, converting devsetup.md
+
+# TODO add .capt to this repo
+
 autoload -U colors; colors
 
-clonesdir=${PACRAT_CLONES-~/src/clones}
+basedir=${PACRAT_BASE-~/.pacrat}
+clonesdir=${PACRAT_CLONES-$basedir/clones}
+unidir=${PACRAT_UNI-$basedir/uni}
 bindir=${PACRAT_BIN-~/.local/bin}
+
+for d in $basedir $clonesdir $unidir $bindir
+do if ! [[ -d $d ]]; then print "Creating new dir: $d"; mkdir -p $d; fi
+done
 
 config=example.zsh
 config=nest.ini
+
+if ! [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
 
 # Add path to any shell
 # echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.$(basename $SHELL)rc && exec $SHELL
@@ -66,7 +78,7 @@ getver () { $1 --version | tail -1 | sed -r 's/.* v?([0-9._-]+) ?.*/\1/' }
 # vercompare '1.3.1' 'clj-kondo' 'clj-kondo --version'
 vercompare () {
      if [[ -z $1 ]]; then dbg 'no vermin present; skipping version comparison check'; return; fi
-     local vermin=$1 cmd=$2 verget=$3
+     local vermin=$1 cmd=$2 package=$3 verget=$4
      dbg vermin: $vermin :: cmd: cmd :: verget: $verget ::
      vermin=$( sed 's/[v ]//g' <<< $vermin ) # remove any v or spaces user may have used
      dbg verget: $verget
@@ -76,14 +88,19 @@ vercompare () {
                          sed -r -e 's/.* v?([0-9._-]+) ?.*/\1/' -e '/^[[:space:]]*$/d' |
                          tail -1 )
      fi
-     dbg vers: $vercur :: $vermin ::
+     if   [[ $vercur == $vermin ]]
+     then print "Detected vercur == vermin ($vercur)"
+          return
+     else print "Detected current version ‘$vercur’ and vermin ‘$vermin’"
+     fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
      vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
      for i in {1..$#vercura}; do
           dbg comparing: $vercura[$i] :: $vermina[$i] ::
           # Default each to zero to accommodate for diff lengths
-          if (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
+          if   (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
           then dbg 'current version is newer than min'
+               print "Your local version is newer: you may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
                return
           elif (( $vercura[$i] == $vermina[$i] ))
           then dbg eq
@@ -98,6 +115,18 @@ vercompare () {
 
 # setdefaultmgr () {}
 
+doaction() {
+     # print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
+     local runnable="$1" # "brew $action $package"
+     print "$fg_bold[magenta]>>>$reset_color ${bold_color}$runnable$reset_color"
+     if [[ -v PACRAT_DRYRUN ]]; then return; fi
+     if [[ -v PACRAT_INTERACTIVE ]] && ! read -qk '?Proceed? [y/n] '
+     then print '\nSkipping'; return
+     fi
+     # then if ! read -qk '?Proceed? [y/n] '; then print 'Skipping'; return; fi
+     eval $runnable
+}
+
 process () {
      local package=$1 # package will be overridden in most cases
      local lowername=${1:gs/-/_}
@@ -106,89 +135,85 @@ process () {
      local doc=$rec[doc]
 
      # Banner
-     if [[ -n $doc ]]; then local docstr=" :: $doc"; fi
+     if   [[ -n $doc ]]; then local docstr=" :: $doc"; fi
      print "\n$fg_bold[yellow]${(U)package}$reset_color$fg[yellow]$docstr$reset_color"
-     if [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
+     if   [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
 
-     if [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]
+     if   [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]
      then print "$fg[magenta]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
           return
      fi
      # TODO Parse depcmds as csv
-     if [[ -n $rec[depcmds] ]] && ! type $rec[depcmds] >/dev/null
+     if   [[ -n $rec[depcmds] ]] && ! type $rec[depcmds] >/dev/null
      then print "$fg[red]ERROR: Unable to locate dependency: $rec[depcmds]; not installing $package$reset_color"
           return
      fi
      # Determine cmd
-     if [[ -n $rec[cmd] ]]; then cmd=$rec[cmd]; else cmd=$package; fi
+     if   [[ -n $rec[cmd] ]]; then cmd=$rec[cmd]; else cmd=$package; fi
 
      # Check if already installed
      if ! type $cmd >/dev/null
      then local action=install doinstall=true
-     elif ! vercompare "$rec[vermin]" "$cmd" "$rec[verget]"
+     elif ! vercompare "$rec[vermin]" "$cmd" $package "$rec[verget]"
      then local action=upgrade doupgrade=true
      fi
 
      if ! [[ -v action ]]
      then print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
-          # print "$fg[green]✓$reset_color No install or upgrade needed for $package"
           return
 
      # if true
      else
-          if [[ $action == install ]]
+          if   [[ $action == install ]]
           then print "$fg[red]!$reset_color $package not installed; trying $bold_color${(U)action}$reset_color…"
           fi
-          if [[ $action == upgrade ]]
+          if   [[ $action == upgrade ]]
           then print "$fg[red]☀$reset_color $package already installed; trying $bold_color${(U)action}$reset_color…"
           fi
 
           ### OS PACKAGE MANAGER (dnf, brew, etc)
           if   [[ $osfam == macos ]] && [[ -n $rec[brew] ]]
-          then # if [[ -n $rec[brew] ]]; then package=$rec[brew]; fi
-               print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color ${bold_color}brew $action $package$reset_color"
-               # brew $action $package
+          then print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
+               doaction "brew $action $package"
           elif [[ $osfam == redhat ]] && [[ -n $rec[dnf] ]]
           then print "$fg[cyan][DNF] Doing $action $package with dnf$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color ${bold_color}sudo dnf $action $package$reset_color"
-               # sudo dnf $action $package
-          # TODO ubuntu, arch, bsd
+               doaction "sudo dnf $action $package"
+          # TODO ubuntu, arch, bsd, (sudo mac)port
+          # TODO linux, macos higher-level targets
 
           ### EGET
           elif [[ -n $rec[eget] ]]
           then print "$fg[cyan][EGET] Installing newest $rec[eget] with eget$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color ${bold_color}EGET_BIN= eget $rec[eget]$reset_color"
-               # EGET_BIN= eget $rec[eget]
+               doaction "EGET_BIN=$bindir eget $rec[eget]"
 
           ### CLONE
           elif [[ -n $rec[clone] ]]
           then local dest=$clonesdir/${rec[clone]:t}
                if   [[ -d $dest ]]
                then print "$fg[cyan][CLONE] Already have clone present; pulling$reset_color"
-                    print "$fg_bold[yellow]>>>$reset_color ${bold_color}git pull$reset_color"
-                    # git pull
+                    doaction "git pull"
                else
                     print "$fg[cyan][CLONE] $rec[clone] --TO--> $dest$reset_color"
-                    print "$fg_bold[yellow]>>>$reset_color ${bold_color}git clone $rec[eget]$reset_color"
-                    # cd $dest && git clone $rec[eget]
+                    doaction "cd $dest && git clone $rec[eget]"
                fi
 
-               # if   [[ -n $rec[install] ]]
-               # then print "Doing install: $rec[install]"
-               #      # eval $rec[install]
-               # fi
+          ### DOCKER (just instructional)
+          elif [[ -n $rec[$docker] ]]
+          then if   alias $pkg >/dev/null
+               then print "Already see existing alias: alias $pkg"
+               else print -n "$fg[yellow]ⓘ Add this alias:$reset_color"
+                    print "alias $pkg='docker $cmd"
+               fi
+          fi
 
           ### GENERIC OS SPEC (instead of bbin, gem, pip, npm, etc)
           elif [[ -n $rec[uni] ]]
           then print "$fg[cyan][UNI] Running universal installation$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color ${bold_color}$rec[uni]$reset_color"
-               # eval $rec[uni]
+               doaction "cd $unidir && $rec[uni]"
 
           ### DEFAULT UNSPECIFIED
           else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color ${bold_color}$mgrcmd $package$reset_color"
-               # eval "$mgrcmd $package"
+               doaction "$mgrcmd $package"
 
 
           # elif [[ -f /etc/os-release ]]
@@ -219,20 +244,20 @@ process () {
           fi
 
           # Run post-op
-          if [[ -n $rec[postop] ]]
+          if   [[ -n $rec[postop] ]]
           then print "$fg[cyan][POSTOP] Doing post-operation$reset_color"
-               print "$fg_bold[yellow]>>>$reset_color $rec[postop]"
+               doaction "$rec[postop]"
           fi
 
           # TODO Handle $rec[path]
           # Maybe check/prompt for direnv vs .shellrc file
-          if [[ -n $rec[path] ]]
-             then print "$fg[yellow]ⓘ Add to your path:$reset_color"
-                  print 'export PATH="$PATH:$HOME/.local/bin" >>' ~/.$(basename $SHELL)rc '&& exec' $SHELL
+          if   [[ -n $rec[path] ]]
+          then print -n "$fg[yellow]ⓘ Add to your path: $reset_color"
+               print 'export PATH="$PATH:$HOME/.local/bin" >>' ~/.$(basename $SHELL)rc '&& exec' $SHELL
           fi
 
-          if [[ -n $rec[instruct] ]]
-          then print "INSTRUCTIONS: $rec[instruct]"
+          if   [[ -n $rec[instruct] ]]
+          then print "$fg[yellow]ⓘ Instructions:$reset_color $rec[instruct]"
           fi
 
           print "$fg_bold[green]✓$reset_color Successfully completed $action"
