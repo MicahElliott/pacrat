@@ -5,6 +5,7 @@
 # TODO blacklist env var of packages the each user doesn't want managed by pacrat
 
 # TODO create new version of nest.ini for CC with inline docs, converting devsetup.md
+# grep -Pzo '```ini *(\n|.)*?\n```' devsetup.md | sed 's/```.*//'
 
 # TODO add .capt to this repo
 
@@ -204,7 +205,6 @@ process () {
                else print -n "$fg[yellow]ⓘ Add this alias:$reset_color"
                     print "alias $pkg='docker $cmd"
                fi
-          fi
 
           ### GENERIC OS SPEC (instead of bbin, gem, pip, npm, etc)
           elif [[ -n $rec[uni] ]]
@@ -214,33 +214,6 @@ process () {
           ### DEFAULT UNSPECIFIED
           else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
                doaction "$mgrcmd $package"
-
-
-          # elif [[ -f /etc/os-release ]]
-          # then linos=$( sed -r --silent 's/^ID=(.*)/\1/p' /etc/os-release )
-          #      # if   (( $redhats[(I)$linos] )) && [[ -n $rec[dnf] ]] || [[ -n $rec[pkg] ]]
-          #      if   (( $redhats[(I)$linos] ))
-          #      then if   [[ -n $rec[dnf] ]]; then package=$rec[dnf]
-          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
-          #           fi
-          #           print "Installing $package with dnf...."
-          #           print '  ' dnf install $package
-          #      elif (( $debians[(I)$linos] ))
-          #      then if   [[ -n $rec[apt] ]]; then package=$rec[apt]
-          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
-          #           fi
-          #           print "Installing $package with apt...."
-          #           print '  ' apt-get install $package
-          #      elif (( $arches[(I)$linos] ))
-          #      then if   [[ -n $rec[pacman] ]]; then package=$rec[pacman]
-          #           elif [[ -n $rec[pkg] ]]; then package=$rec[pkg]
-          #           fi
-          #           print "Installing $package with pacman...."
-          #           print '  ' pacman -S $package
-          #      fi
-          # else print 'ERROR: Not a recognized OS'
-          #      exit 1
-
           fi
 
           # Run post-op

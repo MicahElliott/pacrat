@@ -10,20 +10,24 @@ their state:
 - upgrade
 
 It utilizes your OS's underlying package manager (dnf, apt-get, brew, etc)
-when possible, but also supports installation via `eget` and `git-clone`, plus
-ad hoc via `curl/wget`, `gem`, `pip`, whatever.
+when possible, but also enables installation via
+[`eget`](https://github.com/zyedidia/eget), `git-clone`,
+`docker/podman`, plus ad hoc via `curl/wget`, `gem`, `pip`, whatever.
 
 It's a little like `ansible`, but much simpler: controlled by a single
-INI-style config file, and run only locally.
+INI-style config/manifest file (often shared by a team) containing a list of
+packages, and run only locally. There is no package database.
 
-That package spec config file is a `Nestfile` or `nest.ini` (think of a rat's
-nest) with a declarative syntax that is simply a bunch of sections
+Pacrat can even do a "literate config" with a Markdown file that contains
+`ini` code-block fences.
+
+The package spec config/manifest file is a `Nestfile` or `nest.ini` (think of
+a rat's nest) with a declarative syntax that is simply a bunch of sections
 representing individual packages. Here are some examples:
 
 ```ini
 [clj-kondo]
-doc     = 'static analyzer and linter for Clojure code that sparks joy'
-details = 'https://github.com/clj-kondo/clj-kondo'
+doc     = 'static analyzer and linter for Clojure code (https://github.com/clj-kondo/clj-kondo)'
 cmd     = 'clj-kondo'
 linux   = 'curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo && chmod +x install-clj-kondo && ./install-clj-kondo'
 brew    = 'borkdude/brew/clj-kondo'
@@ -31,12 +35,12 @@ verget  = 'clj-kondo --version | cut -f2 -d" "'
 vermin  = '2024.11.14'
 ```
 
-That shows a package named `clj-kondo` and that:
+That section shows a package named `clj-kondo` and that:
 
 - The installed command (`cmd`) is `clj-kondo`, which will be installed if not
   already present (or upgraded depending on `vermin`)
 
-- On a _Linux_ system, `curl` is used to fetch and run another installer script
+- On any _Linux_ system, `curl` is used to fetch and run an installer script
 
 - On a _Macos_ system, a simple `brew install ...` is used
 
@@ -51,16 +55,15 @@ A very minimal (typical) example:
 
 ```ini
 [just]
-doc = 'a command runner' 
+doc = 'a command runner'
 ```
 
-The `doc` isn't even needed -- it could have been a single line: `[just]`.
-Several implicit things happen here: After inferreences, the actual spec
+Even the `doc` isn't needed — it could have been a single line: `[just]`.
+Several implicit things happen here: After inferences, the actual spec
 becomes:
 
 ```ini
-[just] 
-doc  = 'a command runner'
+[just]
 cmd  = 'just'
 pkg  = 'just'
 brew = 'just'
@@ -69,6 +72,13 @@ apt  = 'just'
 pkg  = 'just'
 nix  = 'nixos.just' # nix-env -iA just
 verget = '<...some magic...>'
+```
+
+Now `just` (and everything else in `nest.ini` will be installed by invoking:
+
+```shell
+% pacrat
+Installing JUST...
 ```
 
 ## What types of packages need Pacrat?
@@ -85,21 +95,23 @@ I personally like to have (up-to-date) on every system: `clj-kondo`, `cljfmt`,
 
 Many of those expected tools are necessary for keeping a sizeable project in
 ship-shape, so you want eveyone on your team to have appropriate versions of
-them installed. So you can put a `nest.ini` at the root of every major project
+them installed. You can put a `nest.ini` at the root of every major project
 you work on. Even though such a file generally covers a _system_, it shouldn't
 be a conflict to have several of them if you work on multiple projects.
 
 The workflow of keeping a team's fleet of systems up-to-date then is:
 
-- Alice creates and adds a `nest.ini` file to a project's repo
+- Alice creates and adds a `nest.ini` file to a project's git repo at the top
+  level
 
 - Bob does a dnf/brew upgrade (or git-pull or eget or ...) and discovers that
   he's running a newer version of `just` than what's spec'd in `nest.ini`,
   so he adds the new version as `vermin`
-  
+
 - Carol pulls on the project (getting an update to `nest.ini`) and runs
-  `pacrat` (maybe automatically via [captain](), and is prompted to upgrade to
-  the new version that Bob put in
+  `pacrat` (maybe automatically via
+  [captain](https://github.com/MicahElliott/captain), and is prompted to
+  upgrade to the new `just` version that Bob put in
 
 ## Full Nestfile spec
 
@@ -121,13 +133,13 @@ Installer modes (most override each other depending on OS):
 - `linux` — usually a `wget` or `curl`, untar/unzip, compile, `cp` sequence; overrides any `dnf`, `apt`, etc
 - `macos` — same as `^^^` but for when running on mac; overrides `brew`
 - `uni` — "universal" general purpose target that can have any shell commands
-- `postop` — a post-operation step that can be done in any mode (eg, useful after a clone/pull)
+- `post` — a post-operation step performed after all others; can be done in any mode (eg, useful after a clone/pull)
+- `upgrade` — special command for upgrading when standard package manager wouldn't know what to do
 
 Versioning:
 
 - `vermin` — ensure the package being installed is at least this new
-- `verget` — optional, explicit way to help `pacrat` determine the currently
-  installed version
+- `verget` — optional, explicit way to help `pacrat` determine the currently installed version
 
 ## Excluding packages
 
