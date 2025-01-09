@@ -9,21 +9,31 @@
 
 # TODO add .capt to this repo
 
+# dibr pacrat-ubuntu -f Dockerfile-ubuntu .
+# dcri --name mypacrat -e CAPT_INTERACTIVE=1 -v ~/proj/insta:/data:Z localhost/pacrat-ubuntu:latest
+
 autoload -U colors; colors
 
-basedir=${PACRAT_BASE-~/.pacrat}
-clonesdir=${PACRAT_CLONES-$basedir/clones}
+basedir=${PACRAT_BASE-~/pacrat}
+clonedir=${PACRAT_CLONE-$basedir/clone}
 unidir=${PACRAT_UNI-$basedir/uni}
 bindir=${PACRAT_BIN-~/.local/bin}
+shellrc=~/.$(basename $SHELL)rc
 
-for d in $basedir $clonesdir $unidir $bindir
+if ! (( $path[(Ie)$bindir] ))
+then print "Add $bindir to your PATH in $shellrc and retry running pacrat"
+     print "=> echo PATH=\"\$PATH:$bindir\" >> $shellrc"
+     exit 1
+fi
+
+for d in $basedir $clonedir $unidir $bindir
 do if ! [[ -d $d ]]; then print "Creating new dir: $d"; mkdir -p $d; fi
 done
 
 config=example.zsh
 config=nest.ini
 
-if ! [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
+if [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
 
 # Add path to any shell
 # echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.$(basename $SHELL)rc && exec $SHELL
@@ -32,19 +42,57 @@ print "Sourcing config file: $config"
 # source $config
 # print ${(v)bbin}
 
+# install_basics () {
+#      for basecmd in eget git zip unzip curl wget podman # lsb-release(linux) brew(mac)
+#      do  if ! type $basecmd >/dev/null
+#          then print "Missing basic dependency command: $basecmd; installing for you now"
+#          fi
+#      done
+# }
+
+declare -A basics_essentials=( name 'buildessentials'
+                               cmd 'gcc'
+                               doc 'build essentials'
+                               apt 'build-essential')
+declare -A basics_git=(    cmd 'git'    name 'git'    doc 'the standard in version control' )
+declare -A basics_zip=(    cmd 'zip'    name 'zip'    doc 'basic zip compaction tool' )
+declare -A basics_unzip=(  cmd 'unzip'  name 'unzip'  doc 'basic unzip extraction tool' )
+declare -A basics_curl=(   cmd 'curl'   name 'curl'   doc 'transfer data with urls' )
+declare -A basics_wget=(   cmd 'wget'   name 'wget'   doc 'transfer files via urls' )
+declare -A basics_podman=( cmd 'podman' name 'podman' xsdoc 'manage containers, pods, and images (https://podman.io/)' )
+declare -A basics_lsbrelease=( name 'lsbrelease'
+                               doc 'get info on linux os family'
+                               cmd 'lsb_release'
+                               dnf 'redhat-release'
+                               apt 'lsb-release' )
+declare -A basics_brew=( name 'brew'
+                         cmd 'brew'
+                         doc 'the missing package manager for macOS'
+                         osfam 'macos'
+                         # depcmds 'cc'
+                         macos '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+                         instruct 'Get Xcode CLT from: https://developer.apple.com/download/all/' )
+declare -A basics_eget=( name 'eget'
+                         doc 'easily install prebuilt binaries from GitHub (https://github.com/zyedidia/eget)'
+                         cmd 'eget'
+                         uni 'curl https://zyedidia.github.io/eget.sh | sh'
+                         post "mv eget ~/.local/bin/" )
+
 # recipes=( $(grep '^[a-z_]\+=(' $config | sed 's/=(.*//') )
-recipes=( $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//'
-          ) )
-# print recipes: $recipes
+recipes=( basics_essentials basics_git basics_zip basics_unzip basics_curl basics_wget basics_podman
+          basics_lsbrelease basics_brew basics_eget
+          $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//')
+        )
+print recipes: $recipes
 
 
 redhats=( redhat fedora centos )
 debians=( debian ubuntu kali purism tails )
 arches=(  arch manjaro )
 
-if ! [[ -d $clonesdir ]]
-then print "Clones dir does not exist yet; creating $clonesdir (PACRAT_CLONES)"
-     mkdir -p $clonesdir
+if ! [[ -d $clonedir ]]
+then print "Clone dir does not exist yet; creating $clonedir (PACRAT_CLONE)"
+     mkdir -p $clonedir
 fi
 
 dbg() { [[ -n $PACRAT_DEBUG ]] && print "$fg[cyan]DEBUG:" $@ $reset_color || true }
@@ -54,12 +102,12 @@ dbg() { [[ -n $PACRAT_DEBUG ]] && print "$fg[cyan]DEBUG:" $@ $reset_color || tru
 setosfam () {
      uos=$(uname -o) # GNU/Linux, Darwin, FreeBSD
      osfam='unknown'
-     lsbos=$(lsb_release -is)
+     lsbos=$(lsb_release -is | tail -1)
      if type lsb_release >/dev/null
      then case $lsbos in
                RedHat|Fedora|Centos)
                     osfam='redhat' mgr=dnf    mgrcmd='sudo dnf install' ;;
-               Debian|Ubunbu|Kali|Purism|Tails)
+               Debian|Ubuntu|Kali|Purism|Tails)
                     osfam='debian' mgr=apt    mgrcmd='sudo apt install' ;;
                Arch|Manjaro)
                     osfam='arch'   mgr=pacman mgrcmd='pacman -S' ;;
@@ -80,7 +128,7 @@ getver () { $1 --version | tail -1 | sed -r 's/.* v?([0-9._-]+) ?.*/\1/' }
 vercompare () {
      if [[ -z $1 ]]; then dbg 'no vermin present; skipping version comparison check'; return; fi
      local vermin=$1 cmd=$2 package=$3 verget=$4
-     dbg vermin: $vermin :: cmd: cmd :: verget: $verget ::
+     dbg vermin: $vermin :: cmd: $cmd :: verget: $verget ::
      vermin=$( sed 's/[v ]//g' <<< $vermin ) # remove any v or spaces user may have used
      dbg verget: $verget
      if [[ -n $verget ]]
@@ -92,7 +140,7 @@ vercompare () {
      if   [[ $vercur == $vermin ]]
      then print "Detected vercur == vermin ($vercur)"
           return
-     else print "Detected current version ‘$vercur’ and vermin ‘$vermin’"
+     else print "Detected your current installed version ‘$vercur’ is newer than vermin ‘$vermin’"
      fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
      vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
@@ -101,7 +149,7 @@ vercompare () {
           # Default each to zero to accommodate for diff lengths
           if   (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
           then dbg 'current version is newer than min'
-               print "Your local version is newer: you may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
+               print "You may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
                return
           elif (( $vercura[$i] == $vermina[$i] ))
           then dbg eq
@@ -121,19 +169,25 @@ doaction() {
      local runnable="$1" # "brew $action $package"
      print "$fg_bold[magenta]>>>$reset_color ${bold_color}$runnable$reset_color"
      if [[ -v PACRAT_DRYRUN ]]; then return; fi
-     if [[ -v PACRAT_INTERACTIVE ]] && ! read -qk '?Proceed? [y/n] '
-     then print '\nSkipping'; return
+     if [[ -v PACRAT_NONINTERACTIVE ]] || ! read -qk '?Proceed? [y/n] '
+     then print '\nSkipping'; earlyexit=1; return
      fi
+     print
      # then if ! read -qk '?Proceed? [y/n] '; then print 'Skipping'; return; fi
-     eval $runnable
+     if ! eval $runnable; then print "$fg[red]XXX Encountered error XXX$reset_color"; earlyexit=2; fi
+     rehash
+     # TODO check status and return error if probs
 }
 
 process () {
+     unset earlyexit
      local package=$1 # package will be overridden in most cases
      local lowername=${1:gs/-/_}
+     # Enable override for when name may not match
      # print lowername: $lowername :: package: $package :: osfam: $osfam
      local -A rec=( ${(kv)${(P)lowername}} )
      local doc=$rec[doc]
+     if [[ -n $rec[name] ]]; then lowername=$rec[name]; package=$rec[name]; fi
 
      # Banner
      if   [[ -n $doc ]]; then local docstr=" :: $doc"; fi
@@ -149,6 +203,13 @@ process () {
      then print "$fg[red]ERROR: Unable to locate dependency: $rec[depcmds]; not installing $package$reset_color"
           return
      fi
+
+     # print "\n\nfile: " $rec[file]
+     if [[ -e $rec[file] ]] # HACK for tools like sdkman that run fully on shell functions
+     then print "Detected that $rec[file] already exists so concluding that $package already installed and self-managed"
+          return
+     fi
+
      # Determine cmd
      if   [[ -n $rec[cmd] ]]; then cmd=$rec[cmd]; else cmd=$package; fi
 
@@ -172,14 +233,23 @@ process () {
           then print "$fg[red]☀$reset_color $package already installed; trying $bold_color${(U)action}$reset_color…"
           fi
 
+          ### MANUAL
+          if   [[ -n $rec[manual] ]]
+          then print "$fg[red]ⓘ Manual:$reset_color $rec[manual]"
+               return
+          fi
+
           ### OS PACKAGE MANAGER (dnf, brew, etc)
           if   [[ $osfam == macos ]] && [[ -n $rec[brew] ]]
           then print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
-               doaction "brew $action $package"
+               doaction "brew $action $rec[brew]"
           elif [[ $osfam == redhat ]] && [[ -n $rec[dnf] ]]
           then print "$fg[cyan][DNF] Doing $action $package with dnf$reset_color"
-               doaction "sudo dnf $action $package"
-          # TODO ubuntu, arch, bsd, (sudo mac)port
+               doaction "sudo dnf $action $rec[dnf]"
+          elif [[ $osfam == debian ]] && [[ -n $rec[apt] ]]
+          then print "$fg[cyan][APT] Doing $action $package with apt$reset_color"
+               doaction "sudo apt $action $rec[apt]"
+          # TODO arch, bsd, (sudo mac)port
           # TODO linux, macos higher-level targets
 
           ### EGET
@@ -189,13 +259,17 @@ process () {
 
           ### CLONE
           elif [[ -n $rec[clone] ]]
-          then local dest=$clonesdir/${rec[clone]:t}
-               if   [[ -d $dest ]]
+          then if   [[ -n $rec[clonedest] ]]
+               then local dest=$rec[clonedest]
+               else local dest=${clonedir}/${rec[clone]:t:r}
+               fi
+               # print "\n\ndest: $dest -- clonedir: $clonedir -- rec: ${rec[clone]:t:r} -- all: ${clonedir}/${rec[clone]:t:r}"
+               if   [[ -d $dest/.git ]]
                then print "$fg[cyan][CLONE] Already have clone present; pulling$reset_color"
-                    doaction "git pull"
+                    doaction "cd $dest && git pull"
                else
                     print "$fg[cyan][CLONE] $rec[clone] --TO--> $dest$reset_color"
-                    doaction "cd $dest && git clone $rec[eget]"
+                    doaction "git clone $rec[clone] $dest && cd $dest"
                fi
 
           ### DOCKER (just instructional)
@@ -217,23 +291,34 @@ process () {
           fi
 
           # Run post-op
-          if   [[ -n $rec[postop] ]]
-          then print "$fg[cyan][POSTOP] Doing post-operation$reset_color"
-               doaction "$rec[postop]"
+          if   [[ -n $rec[post] ]]
+          then print "$fg[cyan][POST] Doing post-operation$reset_color"
+               doaction "$rec[post]"
           fi
 
           # TODO Handle $rec[path]
           # Maybe check/prompt for direnv vs .shellrc file
           if   [[ -n $rec[path] ]]
           then print -n "$fg[yellow]ⓘ Add to your path: $reset_color"
-               print 'export PATH="$PATH:$HOME/.local/bin" >>' ~/.$(basename $SHELL)rc '&& exec' $SHELL
+               print 'export PATH="$PATH:$HOME/.local/bin" >>' $shellrc '&& exec' $SHELL
           fi
 
           if   [[ -n $rec[instruct] ]]
           then print "$fg[yellow]ⓘ Instructions:$reset_color $rec[instruct]"
+               print "Want to paste that here now to last for remainder of this run and proceed?"
+               print "(reply with ‘:’ for no-op or empty to quit)"
+               read '?paste> '
+               if   [[ -z $REPLY ]]
+               then print "OK, quitting now. Rerun pacrat after doing that."
+                    exit
+               else eval "$REPLY"
+               fi
           fi
 
-          print "$fg_bold[green]✓$reset_color Successfully completed $action"
+          if [[ -z $earlyexit ]]
+          then print "$fg_bold[green]✓$reset_color Successfully completed $action"
+               rehash
+          fi
 
      fi
 }
@@ -256,11 +341,13 @@ main () {
      setosfam
      print "Detected OS Family: $osfam, system package manager: $mgr"
      # convert_toml # remove, for debugging
+     # install_basics
      eval "$(convert_toml)"
      # print bbin: $bbin[doc]
      for rec in $recipes
      do process $rec
      done
+     print "\nYou may need to ‘rehash’ now to see newly installed commands."
 }
 
 main

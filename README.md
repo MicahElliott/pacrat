@@ -119,13 +119,14 @@ Top level:
 
 - `doc` — short description
 - `details` — usually a link to project homepage
-- `cmd` — the main CLI command that gets installed (its presence indicates
-  it's already installed)
+- `cmd` — the main CLI command that gets installed (its presence indicates it's already installed)
+- `file` — used instead of `cmd` for special cases where no command is installed
 - `path` — a `PATH` entry that will be added to your running shell and its RC file
 
 Installer modes (most override each other depending on OS):
 
 - `clone` — use `git` to pull down source and keep up-to-date; overrides all
+- `clonedest` — set a specific clone destination to override `PACRAT_CLONE`
 - `brew` — used when on a MacOS system and brew present
 - `dnf` — used when on a RedHat-family system
 - `apt` — used when on a Debian-family system
@@ -135,6 +136,8 @@ Installer modes (most override each other depending on OS):
 - `uni` — "universal" general purpose target that can have any shell commands
 - `post` — a post-operation step performed after all others; can be done in any mode (eg, useful after a clone/pull)
 - `upgrade` — special command for upgrading when standard package manager wouldn't know what to do
+- `manual` — an instruction for how to manually get packages that cannot be auto-downloaded
+- `instruct` — present a blocking user instruction to take action before proceeding with run
 
 Versioning:
 
@@ -152,10 +155,10 @@ want your own checkout to be different. For this, you can use the CSV env var
 
 - `PACRAT_NESTFILE` — `.ini` file location
 - `PACRAT_IGNORES` — CSV of packages to be ignored in `nest.ini`
-- `PACRAT_INTERACTIVE` — set to anything to be prompted before making changes
+- `PACRAT_NONINTERACTIVE` — set to anything to not be prompted before making changes
 - `PACRAT_DRYRUN` — run without executing any install/upgrade commands
 - `PACRAT_BASE` — base directory for clones, archives, etc (default `~/.pacrat`)
-- `PACRAT_CLONES` — directory for git-clones (default `$PACRAT_BASE/clones`)
+- `PACRAT_CLONE` — directory for git-clones (default `$PACRAT_BASE/clone`)
 - `PACRAT_UNI` — directory for archives/extractions (default `$PACRAT_BASE/uni`)
 - `PACRAT_BIN` — directory for binaries from eget (default `~/.local/bin`)
 
