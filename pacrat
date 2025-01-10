@@ -56,6 +56,7 @@ print "Sourcing config file: $config"
 # Maybe can't even start running without this, so remove??
 declare -A basics_lsbrelease=( name 'lsbrelease'
                                doc 'get info on linux os family'
+                               osfam 'linux'
                                cmd 'lsb_release'
                                dnf 'redhat-release'
                                apt 'lsb-release' )
@@ -110,9 +111,9 @@ dbg() { [[ -n $PACRAT_DEBUG ]] && print "$fg[cyan]DEBUG:" $@ $reset_color || tru
 setosfam () {
      uos=$(uname -o) # GNU/Linux, Darwin, FreeBSD
      osfam='unknown'
-     lsbos=$(lsb_release -is | tail -1)
      if type lsb_release >/dev/null
-     then case $lsbos in
+     then lsbos=$(lsb_release -is | tail -1)
+         case $lsbos in
                RedHat|Fedora|Centos)
                     osfam='redhat' mgr=dnf    mgrcmd='sudo dnf install' ;;
                Debian|Ubuntu|Kali|Purism|Tails)
@@ -337,9 +338,9 @@ convert_toml () {
                sed -r 's/ # .*//' | # fully remove comment lines
                sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n/\n)\n\n/g' | # multiline sub with ending )
                sed -r -e 's/\[([a-z0-9_-]+)\]/declare  \1\\=(\nname \1/'  | # add declare and line after with lowername
-               sed -r -e '/^declare  /{s/-/_/g}'  | # convert - to _
+               sed -r -e '/^declare  /s/-/_/g'  | # convert - to _
                sed -r -e 's/^declare  /declare -A /'  | # add a -A
-               sed -r -e '$ a) # THE END'  | # append final )
+               sed -r -e $'$ a\\\n) # THE END'  | # append final )
                sed -r -e 's/^([a-z0-9_-]+) *= */\1 /' # |
           )
      print -- $shstr
