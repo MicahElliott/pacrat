@@ -50,21 +50,29 @@ print "Sourcing config file: $config"
 #      done
 # }
 
-declare -A basics_essentials=( name 'buildessentials'
-                               cmd 'gcc'
-                               doc 'build essentials'
-                               apt 'build-essential')
-declare -A basics_git=(    cmd 'git'    name 'git'    doc 'the standard in version control' )
-declare -A basics_zip=(    cmd 'zip'    name 'zip'    doc 'basic zip compaction tool' )
-declare -A basics_unzip=(  cmd 'unzip'  name 'unzip'  doc 'basic unzip extraction tool' )
-declare -A basics_curl=(   cmd 'curl'   name 'curl'   doc 'transfer data with urls' )
-declare -A basics_wget=(   cmd 'wget'   name 'wget'   doc 'transfer files via urls' )
-declare -A basics_podman=( cmd 'podman' name 'podman' xsdoc 'manage containers, pods, and images (https://podman.io/)' )
+# TODO figure out how to hide these for all but first run
+
+
+# Maybe can't even start running without this, so remove??
 declare -A basics_lsbrelease=( name 'lsbrelease'
                                doc 'get info on linux os family'
                                cmd 'lsb_release'
                                dnf 'redhat-release'
                                apt 'lsb-release' )
+# This is huge, but it's a dev system, right?
+declare -A basics_essentials=( name 'buildessentials'
+                               cmd 'gcc'
+                               doc 'build essentials'
+                               dnf '@development-tools'
+                               apt 'build-essential')
+# zip/upzip are needed for sdkman and likely enough others
+declare -A basics_zip=(    cmd 'zip'    name 'zip'    doc 'basic zip compaction tool' )
+declare -A basics_unzip=(  cmd 'unzip'  name 'unzip'  doc 'basic unzip extraction tool' )
+# These are are mechanisms for installation
+declare -A basics_git=(    cmd 'git'    name 'git'    doc 'the standard in version control' )
+declare -A basics_curl=(   cmd 'curl'   name 'curl'   doc 'transfer data with urls' )
+declare -A basics_wget=(   cmd 'wget'   name 'wget'   doc 'transfer files via urls' )
+declare -A basics_podman=( cmd 'podman' name 'podman' doc 'manage containers, pods, and images (https://podman.io/)' )
 declare -A basics_brew=( name 'brew'
                          cmd 'brew'
                          doc 'the missing package manager for macOS'
@@ -347,6 +355,7 @@ main () {
      for rec in $recipes
      do process $rec
      done
+     print "TODO Summarize all the INSTRUCTION and MANUAL lines"
      print "\nYou may need to ‘rehash’ now to see newly installed commands."
 }
 

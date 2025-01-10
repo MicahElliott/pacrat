@@ -176,6 +176,8 @@ thing this way and follow all its guides and ..."
 
 - asdf
 - nix
+- [flox](https://flox.dev/)
+- [spack](https://github.com/spack/spack)
 - zplug/zinit
 
 ## Questions

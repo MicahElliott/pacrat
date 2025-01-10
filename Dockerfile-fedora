@@ -1,0 +1,21 @@
+FROM registry.fedoraproject.org/fedora
+
+RUN dnf install -y zsh lsb_release
+
+RUN useradd --shell /bin/zsh --groups wheel -m rat
+# RUN passwd rat
+
+ENV PATH="$PATH:~/.local/bin"
+
+# # Install eget
+# ENV EGET_BIN=/usr/local/bin
+# RUN curl https://zyedidia.github.io/eget.sh | sh && mv eget /usr/local/bin
+
+# clean up
+# RUN apt-get --purge autoremove -y
+
+# COPY bin /capt/bin
+WORKDIR data
+
+# ENTRYPOINT /bin/zsh
+CMD ["/bin/zsh"]

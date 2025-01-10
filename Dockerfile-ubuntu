@@ -1,0 +1,22 @@
+FROM docker.io/library/ubuntu
+
+# RUN apt-get update && apt-get install  -y sudo zsh lsb-release git file curl wget zip unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install  -y sudo zsh lsb-release  && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --shell /bin/zsh --groups sudo -m rat
+# RUN passwd rat
+
+ENV PATH="$PATH:~/.local/bin"
+
+# # Install eget
+# ENV EGET_BIN=/usr/local/bin
+# RUN curl https://zyedidia.github.io/eget.sh | sh && mv eget /usr/local/bin
+
+# clean up
+# RUN apt-get --purge autoremove -y
+
+# COPY bin /capt/bin
+WORKDIR data
+
+# ENTRYPOINT /bin/zsh
+CMD ["/bin/zsh"]
