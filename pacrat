@@ -19,6 +19,7 @@ clonedir=${PACRAT_CLONE-$basedir/clone}
 unidir=${PACRAT_UNI-$basedir/uni}
 bindir=${PACRAT_BIN-~/.local/bin}
 shellrc=~/.$(basename $SHELL)rc
+instructions=()
 
 if ! (( $path[(Ie)$bindir] ))
 then print "Add $bindir to your PATH in $shellrc and retry running pacrat"
@@ -149,7 +150,7 @@ vercompare () {
      if   [[ $vercur == $vermin ]]
      then print "Detected vercur == vermin ($vercur)"
           return
-     else print "Detected your current installed version ‘$vercur’ is older than vermin ‘$vermin’"
+     else print "Detected your current installed version ‘$vercur’ is newer than vermin ‘$vermin’"
      fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
      vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
@@ -250,7 +251,8 @@ process () {
 
           ### MANUAL
           if   [[ -n $rec[manual] ]]
-          then print "$fg[red]ⓘ Manual:$reset_color $rec[manual]"
+          then manual="$fg[red]ⓘ Manual:$reset_color $rec[manual]"
+               instructions+="[${(U)package}] $manual"; print $manual
                return
           fi
 
@@ -305,6 +307,12 @@ process () {
                doaction "$mgrcmd $package"
           fi
 
+          if   [[ -n $earlyexit ]]
+          then print "$fg_bold[magenta]◊$reset_color Proceeding past $action"
+               rehash
+               return
+          fi
+
           # Run post-op
           if   [[ -n $rec[post] ]]
           then print "$fg[cyan][POST] Doing post-operation$reset_color"
@@ -319,7 +327,8 @@ process () {
           fi
 
           if   [[ -n $rec[instruct] ]]
-          then print "$fg[yellow]ⓘ Instructions:$reset_color $rec[instruct]"
+          then instruct="$fg[yellow]ⓘ Instructions:$reset_color $rec[instruct]"
+               instructions+="[${(U)package}] $instruct"; print $instruct
                print "Want to paste that here now to last for remainder of this run and proceed?"
                print "(reply with ‘:’ for no-op or empty to quit)"
                read '?paste> '
@@ -330,7 +339,7 @@ process () {
                fi
           fi
 
-          if [[ -z $earlyexit ]]
+          if   [[ -z $earlyexit ]]
           then print "$fg_bold[green]✓$reset_color Successfully completed $action"
                rehash
           fi
@@ -362,7 +371,9 @@ main () {
      for rec in $recipes
      do process $rec
      done
-     print "TODO Summarize all the INSTRUCTION and MANUAL lines"
+     print '\n————————————————————————————————————————————————————————————————————————'
+     if (( $#instructions > 0 )); then print "\nThe following still likely need action:"; fi
+     for i in $instructions; do print $i; done
      print "\nYou may need to ‘rehash’ now to see newly installed commands."
 }
 
