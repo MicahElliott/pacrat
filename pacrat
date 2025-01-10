@@ -20,6 +20,8 @@ unidir=${PACRAT_UNI-$basedir/uni}
 bindir=${PACRAT_BIN-~/.local/bin}
 shellrc=~/.$(basename $SHELL)rc
 instructions=()
+summary_installs=()
+summary_upgrades=()
 
 if ! (( $path[(Ie)$bindir] ))
 then print "Add $bindir to your PATH in $shellrc and retry running pacrat"
@@ -31,7 +33,8 @@ for d in $basedir $clonedir $unidir $bindir
 do if ! [[ -d $d ]]; then print "Creating new dir: $d"; mkdir -p $d; fi
 done
 
-config=example.zsh
+# config=example.zsh
+# config=tiny.ini
 config=nest.ini
 
 if [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
@@ -151,6 +154,7 @@ vercompare () {
      then print "Detected vercur == vermin ($vercur)"
           return
      else print "Detected your current installed version ‘$vercur’ is newer than vermin ‘$vermin’"
+          curnewer=1
      fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
      vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
@@ -158,15 +162,14 @@ vercompare () {
           dbg comparing: $vercura[$i] :: $vermina[$i] ::
           # Default each to zero to accommodate for diff lengths
           if   (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
-          then dbg 'current version is newer than min'
-               print "You may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
+          then print "You may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
                return
           elif (( $vercura[$i] == $vermina[$i] ))
           then dbg eq
                continue
           elif (( $vercura[$i] < $vermina[$i] ))
           then dbg 'current version outdated; need upgrade'
-               return 1
+               return 2
           fi
      done
      dbg 'versions appear to match'
@@ -174,23 +177,31 @@ vercompare () {
 
 # setdefaultmgr () {}
 
+# This is where the big action happens!
+# Do an INSTALL or UPGRADE, collect activity for final summary
 doaction() {
      # print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
-     local runnable="$1" # "brew $action $package"
+     local thisaction="$1" thispackage="$2" runnable="$3" # "brew $action $package"
      print "$fg_bold[magenta]>>>$reset_color ${bold_color}$runnable$reset_color"
      if [[ -v PACRAT_DRYRUN ]]; then return; fi
-     if [[ -v PACRAT_NONINTERACTIVE ]] || ! read -qk '?Proceed? [y/n] '
+     if   [[ -v PACRAT_NONINTERACTIVE ]] || ! read -qk '?Proceed? [y/n] '
      then print '\nSkipping'; earlyexit=1; return
      fi
      print
      # then if ! read -qk '?Proceed? [y/n] '; then print 'Skipping'; return; fi
-     if ! eval $runnable; then print "$fg[red]XXX Encountered error XXX$reset_color"; earlyexit=2; fi
-     rehash
-     # TODO check status and return error if probs
+     if ! eval $runnable
+     then print "$fg[red]XXX  ENCOUNTERED ERROR  XXX$reset_color"
+          earlyexit=2; return 2
+     else if   [[ $thisaction == 'install' ]]; then summary_installs+="$thispackage"
+          elif [[ $thisaction == 'upgrade' ]]; then summary_upgrades+="$thispackage"
+          else print "XXX UNREGISTERED ACTION"
+          fi
+          rehash
+     fi
 }
 
 process () {
-     unset earlyexit
+     unset earlyexit curnewer
      local package=$1 # package will be overridden in most cases
      local lowername=${1:gs/-/_}
      # Enable override for when name may not match
@@ -205,7 +216,7 @@ process () {
      if   [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
 
      if   [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]
-     then print "$fg[magenta]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
+     then print "$fg[cyan]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
           return
      fi
      # TODO Parse depcmds as csv
@@ -237,8 +248,12 @@ process () {
      fi
 
      if ! [[ -v action ]]
-     then print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
-          return
+     then # FIXME Don't say up-to-date or green-check unless we know there was no vermin warning
+          if [[ -v curnewer ]]
+          then print "$fg_bold[magenta]♻$reset_color Already installed but newer than version in $config$reset_color"
+          else print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
+               return
+          fi
 
      # if true
      else
@@ -252,27 +267,27 @@ process () {
           ### MANUAL
           if   [[ -n $rec[manual] ]]
           then manual="$fg[red]ⓘ Manual:$reset_color $rec[manual]"
-               instructions+="[${(U)package}] $manual"; print $manual
+               instructions+="${bold_color}[${(U)package}]$reset_color $manual"; print $manual
                return
           fi
 
           ### OS PACKAGE MANAGER (dnf, brew, etc)
           if   [[ $osfam == macos ]] && [[ -n $rec[brew] ]]
           then print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
-               doaction "brew $action $rec[brew]"
+               doaction $action $package "brew $action $rec[brew]"
           elif [[ $osfam == redhat ]] && [[ -n $rec[dnf] ]]
           then print "$fg[cyan][DNF] Doing $action $package with dnf$reset_color"
-               doaction "sudo dnf $action $rec[dnf]"
+               doaction $action $package "sudo dnf $action $rec[dnf]"
           elif [[ $osfam == debian ]] && [[ -n $rec[apt] ]]
           then print "$fg[cyan][APT] Doing $action $package with apt$reset_color"
-               doaction "sudo apt $action $rec[apt]"
+               doaction $action $package "sudo apt $action $rec[apt]"
           # TODO arch, bsd, (sudo mac)port
           # TODO linux, macos higher-level targets
 
           ### EGET
           elif [[ -n $rec[eget] ]]
           then print "$fg[cyan][EGET] Installing newest $rec[eget] with eget$reset_color"
-               doaction "EGET_BIN=$bindir eget $rec[eget]"
+               doaction $action $package "EGET_BIN=$bindir eget $rec[eget]"
 
           ### CLONE
           elif [[ -n $rec[clone] ]]
@@ -283,10 +298,10 @@ process () {
                # print "\n\ndest: $dest -- clonedir: $clonedir -- rec: ${rec[clone]:t:r} -- all: ${clonedir}/${rec[clone]:t:r}"
                if   [[ -d $dest/.git ]]
                then print "$fg[cyan][CLONE] Already have clone present; pulling$reset_color"
-                    doaction "cd $dest && git pull"
+                    doaction $action $package "cd $dest && git pull"
                else
                     print "$fg[cyan][CLONE] $rec[clone] --TO--> $dest$reset_color"
-                    doaction "git clone $rec[clone] $dest && cd $dest"
+                    doaction $action $package "git clone $rec[clone] $dest && cd $dest"
                fi
 
           ### DOCKER (just instructional)
@@ -300,11 +315,11 @@ process () {
           ### GENERIC OS SPEC (instead of bbin, gem, pip, npm, etc)
           elif [[ -n $rec[uni] ]]
           then print "$fg[cyan][UNI] Running universal installation$reset_color"
-               doaction "cd $unidir && $rec[uni]"
+               doaction $action $package "cd $unidir && $rec[uni]"
 
           ### DEFAULT UNSPECIFIED
           else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
-               doaction "$mgrcmd $package"
+               doaction $action $package "$mgrcmd $package"
           fi
 
           if   [[ -n $earlyexit ]]
@@ -316,7 +331,7 @@ process () {
           # Run post-op
           if   [[ -n $rec[post] ]]
           then print "$fg[cyan][POST] Doing post-operation$reset_color"
-               doaction "$rec[post]"
+               doaction $action $package "$rec[post]"
           fi
 
           # TODO Handle $rec[path]
@@ -328,7 +343,7 @@ process () {
 
           if   [[ -n $rec[instruct] ]]
           then instruct="$fg[yellow]ⓘ Instructions:$reset_color $rec[instruct]"
-               instructions+="[${(U)package}] $instruct"; print $instruct
+               instructions+="${bold_color}[${(U)package}]$reset_color $instruct"; print $instruct
                print "Want to paste that here now to last for remainder of this run and proceed?"
                print "(reply with ‘:’ for no-op or empty to quit)"
                read '?paste> '
@@ -349,14 +364,16 @@ process () {
 
 convert_toml () {
      shstr=$(
-          sed -r '/^#+ /d' $config |
+          sed -r '/^#+/d' $config |
                sed -r 's/ # .*//' | # fully remove comment lines
-               sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n/\n)\n\n/g' | # multiline sub with ending )
+               sed -e '/^$/N' -e '/^\n$/D' | # Reduce multiple empty lines down to single # https://stackoverflow.com/a/4522043/326516
+               sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n\+/\n)\n/g'  | # multiline sub with ending ) # https://stackoverflow.com/a/1252191/326516
                sed -r -e 's/\[([a-z0-9_-]+)\]/declare  \1\\=(\nname \1/'  | # add declare and line after with lowername
                sed -r -e '/^declare  /s/-/_/g'  | # convert - to _
                sed -r -e 's/^declare  /declare -A /'  | # add a -A
                sed -r -e $'$ a\\\n) # THE END'  | # append final )
                sed -r -e 's/^([a-z0-9_-]+) *= */\1 /' # |
+
           )
      print -- $shstr
 }
@@ -364,7 +381,7 @@ convert_toml () {
 main () {
      setosfam
      print "Detected OS Family: $osfam, system package manager: $mgr"
-     # convert_toml # remove, for debugging
+     # convert_toml; exit # remove, for debugging
      # install_basics
      eval "$(convert_toml)"
      # print bbin: $bbin[doc]
@@ -372,6 +389,11 @@ main () {
      do process $rec
      done
      print '\n————————————————————————————————————————————————————————————————————————'
+     print "${bold_color}### SUMMARY$reset_color"
+     if (( $#summary_installs > 0 )); then print "\nThe following packages were installed:"; fi
+     for inst in $summary_installs; do print -- "$fg_bold[green]+ $inst$reset_color"; done
+     if (( $#summary_upgrades > 0 )); then print "\nThe following packages were upgraded:"; fi
+     for upg  in $summary_upgrades; do print -- "fg_bold[cyan]♻ $upg$reset_color"; done
      if (( $#instructions > 0 )); then print "\nThe following still likely need action:"; fi
      for i in $instructions; do print $i; done
      print "\nYou may need to ‘rehash’ now to see newly installed commands."
