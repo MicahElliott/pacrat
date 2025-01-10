@@ -149,7 +149,7 @@ vercompare () {
      if   [[ $vercur == $vermin ]]
      then print "Detected vercur == vermin ($vercur)"
           return
-     else print "Detected your current installed version ‘$vercur’ is newer than vermin ‘$vermin’"
+     else print "Detected your current installed version ‘$vercur’ is older than vermin ‘$vermin’"
      fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
      vermina=( $( sed -r 's/[._-]/ /g' <<< $vermin ) )
@@ -221,9 +221,15 @@ process () {
 
      # Determine cmd
      if   [[ -n $rec[cmd] ]]; then cmd=$rec[cmd]; else cmd=$package; fi
+     # print cmd: $cmd
+     local cmds=( ${(s:,:)cmd} )
+     local alreadyinstalled
+     for c in $cmds
+     do   if type $c >/dev/null; then alreadyinstalled=1; break; fi
+     done
 
      # Check if already installed
-     if ! type $cmd >/dev/null
+     if [[ -z $alreadyinstalled ]]
      then local action=install doinstall=true
      elif ! vercompare "$rec[vermin]" "$cmd" $package "$rec[verget]"
      then local action=upgrade doupgrade=true
