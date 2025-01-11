@@ -1,29 +1,57 @@
 # Pacrat
 
-A minimal yet flexible, general-purpose package manager for a variety of
-package types and OSs, geared toward installing CLI tools.
+> A minimal yet flexible general-purpose package manager for a variety of
+> package types and OSs, geared toward installing any CLI tool.
+
+<img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
 
 Pacrat does either of two simple things for any CLI-oriented package, depending on
 their state:
 
-- install
-- upgrade
+- _install_
+- _upgrade_
 
-It utilizes your OS's underlying package manager (dnf, apt-get, brew, etc)
-when possible, but also enables installation via
-[`eget`](https://github.com/zyedidia/eget), `git-clone`,
-`docker/podman`, plus ad hoc via `curl/wget`, `gem`, `pip`, whatever.
+## How it works
 
-It's a little like `ansible`, but much simpler: controlled by a single
-INI-style config/manifest file (often shared by a team) containing a list of
-packages, and run only locally. There is no package database.
+It utilizes your OS's underlying package manager (dnf, apt-get, brew, etc),
+and also enables installation via [`eget`](https://github.com/zyedidia/eget),
+`git-clone`, `docker/podman`, plus ad hoc via `curl/wget`, `gem`, `pip`,
+whatever.
+
+It's a little like [ansible](https://github.com/ansible/ansible), but much
+simpler: controlled fully by a single INI-style config/manifest file (often shared
+by a team) containing a list of packages, and run only locally. There is no
+package database.
 
 Pacrat can even do a "literate config" with a Markdown file that contains
 `ini` code-block fences.
 
-The package spec config/manifest file is a `Nestfile` or `nest.ini` (think of
-a rat's nest) with a declarative syntax that is simply a bunch of sections
-representing individual packages. Here are some examples:
+## Installation
+
+Pacrat is just [a single `pacrat` script](./pacrat) that you can grab and put
+on your `$PATH`.
+
+```shell
+cd ~/.local/bin # assuming this is on your PATH
+wget https://github.com/MicahElliott/pacrat/pacrat
+chmod +x pacrat
+```
+
+There are no install dependencies other than Zsh! Pacrat will bootstrap itself
+with any necessary missing installers
+([eget](https://github.com/zyedidia/eget), [podman](https://podman.io/),
+unzip, wget, etc) on your first run.
+
+## Spec file (`nest.ini`)
+
+The package spec config/manifest file is a single `Nestfile` or `nest.ini`
+(think of a rat's nest) with a declarative syntax that is simply a bunch of
+sections representing individual packages. You create a `nest.ini` at the root
+of your project repo to keep your team's packages up-to-date and in-sync. You
+can even use it personally in your `~/nest.ini` to ensure every machine you
+work on will have all your essentials installed.
+
+Here are some package examples — first, a linter (`clj-kondo`):
 
 ```ini
 [clj-kondo]
@@ -51,7 +79,9 @@ That section shows a package named `clj-kondo` and that:
 - An upgrade may be performed if the presently installed version is older
   (gleaned version is older than `vermin`)
 
-A very minimal (typical) example:
+See [`nest.ini`](./nest.ini) for an extensive runnable example.
+
+A very minimal (typical) example for a command runner (`just`):
 
 ```ini
 [just]
@@ -74,12 +104,15 @@ nix  = 'nixos.just' # nix-env -iA just
 verget = '<...some magic...>'
 ```
 
-Now `just` (and everything else in `nest.ini` will be installed by invoking:
+So if those two are the extent of your `nest.ini`, now `clj-kondo` and `just`
+will be installed by invoking `pacrat`:
 
 ```shell
 % pacrat
 Installing JUST...
 ```
+
+Or if they are already installed, `pacrat` will prompt you to _upgrade_ them.
 
 ## What types of packages need Pacrat?
 
@@ -162,24 +195,15 @@ want your own checkout to be different. For this, you can use the CSV env var
 - `PACRAT_UNI` — directory for archives/extractions (default `$PACRAT_BASE/uni`)
 - `PACRAT_BIN` — directory for binaries from eget (default `~/.local/bin`)
 
-## Related installers/friends
-
-- bbin
-- eget
-
 ## Alternatives
 
 I explored several alternatives when considering whether to create Pacrat. In
-the end, I decided it was needed since the following all had some weaknesses
-for my use case, and were too complex to tell my team, "just install this
-thing this way and follow all its guides and ..."
+the end, I decided Pacrat needed to exist since the following all had some
+weaknesses for my use case, or were too complex to get a team up and running
+quickly.
 
-- asdf
-- nix
+- [asdf](https://asdf-vm.com/)
+- [nix](https://github.com/NixOS/nix)
 - [flox](https://flox.dev/)
 - [spack](https://github.com/spack/spack)
 - zplug/zinit
-
-## Questions
-
-Should docker updates be a feature? Should it initiate pulls
