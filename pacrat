@@ -7,8 +7,6 @@
 # TODO create new version of nest.ini for CC with inline docs, converting devsetup.md
 # grep -Pzo '```ini *(\n|.)*?\n```' devsetup.md | sed 's/```.*//'
 
-# TODO add .capt to this repo
-
 # dibr pacrat-ubuntu -f Dockerfile-ubuntu .
 # dcri --name mypacrat -e CAPT_INTERACTIVE=1 -v ~/proj/insta:/data:Z localhost/pacrat-ubuntu:latest
 

@@ -1,7 +1,7 @@
 # Pacrat
 
 > A minimal yet flexible general-purpose package manager for a variety of
-> package types and OSs, geared toward installing any CLI tool.
+> package types and OSs, geared toward installing and upgrading any CLI tool.
 
 <img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
 
@@ -33,14 +33,15 @@ on your `$PATH`.
 
 ```shell
 cd ~/.local/bin # assuming this is on your PATH
-wget https://github.com/MicahElliott/pacrat/pacrat
+wget https://raw.githubusercontent.com/MicahElliott/pacrat/refs/heads/main/pacrat
 chmod +x pacrat
 ```
 
 There are no install dependencies other than Zsh! Pacrat will bootstrap itself
 with any necessary missing installers
 ([eget](https://github.com/zyedidia/eget), [podman](https://podman.io/),
-unzip, wget, etc) on your first run.
+unzip, wget, etc) on your first run. `pacrat` is a readable and tiny Zsh
+script (400 KLOC, 20 kb).
 
 ## Spec file (`nest.ini`)
 
@@ -194,6 +195,31 @@ want your own checkout to be different. For this, you can use the CSV env var
 - `PACRAT_CLONE` — directory for git-clones (default `$PACRAT_BASE/clone`)
 - `PACRAT_UNI` — directory for archives/extractions (default `$PACRAT_BASE/uni`)
 - `PACRAT_BIN` — directory for binaries from eget (default `~/.local/bin`)
+
+## Experimenting with OSs you use
+
+If you're not ready to turn `pacrat` loose on your system just yet, try
+running it in an isolated Podman container. A couple are already here for
+testing: [Fedora](./Dockerfile-fedora) and [Ubuntu](./Dockerfile-ubuntu). For
+example:
+
+```shell
+# Build a fedora container
+% cd ~/path/to/pacrat/clone
+% podman image build --rm -t  pacrat-fedora -f Dockerfile-fedora .
+
+# Run it
+% podman container run -it --rm --name myfedpacrat -v ~/path/to/pacrat/clone:/data:Z localhost/pacrat-fedora:latest
+
+# Set a password for "rat" user to do sudo things, and log in
+[root@b7283479cd6e]/data# passwd rat
+[root@b7283479cd6e]/data# sudo -iu rat
+
+# Run pacrat
+[rat@b7283479cd6e]~% cd /data
+[rat@b7283479cd6e]~% ./pacrat
+Running PACRAT ...
+```
 
 ## Alternatives
 
