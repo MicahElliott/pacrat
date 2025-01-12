@@ -13,18 +13,40 @@ their state:
 
 ## How it works
 
-It utilizes your OS's underlying package manager (dnf, apt-get, brew, etc),
+Pacrat utilizes your OS's underlying package manager (dnf, apt, brew, etc),
 and also enables installation via [`eget`](https://github.com/zyedidia/eget),
 `git-clone`, `docker/podman`, plus ad hoc via `curl/wget`, `gem`, `pip`,
-whatever.
+whatever. This means that your team of developers can be spread across several
+OSs and not have to worry about tooling.
 
-It's a little like [ansible](https://github.com/ansible/ansible), but much
+Pacrat's big value is in checking (invoking) each package to glean its version
+and comparing against _vermin_ to ensure that tooling is consistent
+(up-to-date) across any machines that share a Nestfile.
+
+This makes Pacrat a good tool for use in a `post-checkout` git-hook. So you
+may want to set that up with something like
+[Captain](https://github.com/MicahElliott/captain).
+
+### Literate/executable setup doc
+
+Pacrat can even do a "literate config" with a Markdown file (like a Python
+Notebook) that contains `ini` fenced code-blocks. Those get auto-converted
+on-the-fly to a Nestfile that Pacrat uses. So now your team's "getting
+started" guide is something that can be executed (and optionally read)!
+
+### Anti-features
+
+Pacrat is a little like [Ansible](https://github.com/ansible/ansible), but much
 simpler: controlled fully by a single INI-style config/manifest file (often shared
-by a team) containing a list of packages, and run only locally. There is no
-package database.
+by a team) containing a list of packages, and run only locally.
 
-Pacrat can even do a "literate config" with a Markdown file that contains
-`ini` code-block fences.
+Other anti-features:
+
+- no package database — just a Nestfile
+- no version pinning — just a minimum (`vermin`), to allow for native manager upgrades
+- no uninstalls (for now)
+- no writing to the Nestfile (for now, but may feature prompting to update `vermin`)
+- no dependency logic: if you want Clojure, it's on you to specify Java before it
 
 ## Installation
 
@@ -32,8 +54,10 @@ Pacrat is just [a single `pacrat` script](./pacrat) that you can grab and put
 on your `$PATH`.
 
 ```shell
+mkdir -p ~/.local/bin
+path+=~/.local/bin
 cd ~/.local/bin # assuming this is on your PATH
-wget https://raw.githubusercontent.com/MicahElliott/pacrat/refs/heads/main/pacrat
+curl -o pacrat https://raw.githubusercontent.com/MicahElliott/pacrat/refs/heads/main/pacrat
 chmod +x pacrat
 ```
 
@@ -41,7 +65,7 @@ There are no install dependencies other than Zsh! Pacrat will bootstrap itself
 with any necessary missing installers
 ([eget](https://github.com/zyedidia/eget), [podman](https://podman.io/),
 unzip, wget, etc) on your first run. `pacrat` is a readable and tiny Zsh
-script (400 KLOC, 20 kb).
+script (500 lines, 20 kb).
 
 ## Spec file (`nest.ini`)
 
@@ -233,3 +257,8 @@ quickly.
 - [flox](https://flox.dev/)
 - [spack](https://github.com/spack/spack)
 - zplug/zinit
+
+## Demo
+
+<img title="Pacrat Demo 1" src="./demo1.png">
+<img title="Pacrat Demo 2" src="./demo2.png">

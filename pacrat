@@ -7,11 +7,17 @@
 # TODO create new version of nest.ini for CC with inline docs, converting devsetup.md
 # grep -Pzo '```ini *(\n|.)*?\n```' devsetup.md | sed 's/```.*//'
 
+# Add path to any shell
+# echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.$(basename $SHELL)rc && exec $SHELL
+
 # dibr pacrat-ubuntu -f Dockerfile-ubuntu .
 # dcri --name mypacrat -e CAPT_INTERACTIVE=1 -v ~/proj/insta:/data:Z localhost/pacrat-ubuntu:latest
 
 autoload -U colors; colors
 
+# config=example.zsh
+# config=tiny.ini
+config=${PACRAT_NESTFILE-nest.ini}
 basedir=${PACRAT_BASE-~/pacrat}
 clonedir=${PACRAT_CLONE-$basedir/clone}
 unidir=${PACRAT_UNI-$basedir/uni}
@@ -31,29 +37,9 @@ for d in $basedir $clonedir $unidir $bindir
 do if ! [[ -d $d ]]; then print "Creating new dir: $d"; mkdir -p $d; fi
 done
 
-# config=example.zsh
-# config=tiny.ini
-config=nest.ini
-
 if [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
 
-# Add path to any shell
-# echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.$(basename $SHELL)rc && exec $SHELL
-
-print "Sourcing config file: $config"
-# source $config
-# print ${(v)bbin}
-
-# install_basics () {
-#      for basecmd in eget git zip unzip curl wget podman # lsb-release(linux) brew(mac)
-#      do  if ! type $basecmd >/dev/null
-#          then print "Missing basic dependency command: $basecmd; installing for you now"
-#          fi
-#      done
-# }
-
-# TODO figure out how to hide these for all but first run
-
+print "Sourcing config file: $fg_bold[green]$config$reset_color"
 
 # Maybe can't even start running without this, so remove??
 declare -A basics_lsbrelease=( name 'lsbrelease'
@@ -86,15 +72,8 @@ declare -A basics_brew=( name 'brew'
 declare -A basics_eget=( name 'eget'
                          doc 'easily install prebuilt binaries from GitHub (https://github.com/zyedidia/eget)'
                          cmd 'eget'
-                         uni 'curl https://zyedidia.github.io/eget.sh | sh'
+                         uni 'curl --silent https://zyedidia.github.io/eget.sh | sh'
                          post "mv eget ~/.local/bin/" )
-
-# recipes=( $(grep '^[a-z_]\+=(' $config | sed 's/=(.*//') )
-recipes=( basics_essentials basics_git basics_zip basics_unzip basics_curl basics_wget basics_podman
-          basics_lsbrelease basics_brew basics_eget
-          $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//')
-        )
-print recipes: $recipes
 
 
 redhats=( redhat fedora centos )
@@ -183,7 +162,8 @@ doaction() {
      print "$fg_bold[magenta]>>>$reset_color ${bold_color}$runnable$reset_color"
      if [[ -v PACRAT_DRYRUN ]]; then return; fi
      if   [[ -v PACRAT_NONINTERACTIVE ]] || ! read -qk '?Proceed? [y/n] '
-     then print '\nSkipping'; earlyexit=1; return
+     # then print '\nSkipping'; earlyexit=1; return
+     then print; earlyexit=1; return
      fi
      print
      # then if ! read -qk '?Proceed? [y/n] '; then print 'Skipping'; return; fi
@@ -199,7 +179,8 @@ doaction() {
 }
 
 process () {
-     unset earlyexit curnewer
+     unset earlyexit curnewer bootstrap invalid_os
+     local orig_package=$1
      local package=$1 # package will be overridden in most cases
      local lowername=${1:gs/-/_}
      # Enable override for when name may not match
@@ -208,13 +189,19 @@ process () {
      local doc=$rec[doc]
      if [[ -n $rec[name] ]]; then lowername=$rec[name]; package=$rec[name]; fi
 
-     # Banner
-     if   [[ -n $doc ]]; then local docstr=" :: $doc"; fi
-     print "\n$fg_bold[yellow]${(U)package}$reset_color$fg[yellow]$docstr$reset_color"
-     if   [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
+     if [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]; then invalid_os=1; fi
 
-     if   [[ -n $rec[osfam] ]] && [[ $rec[osfam] != $osfam ]]
-     then print "$fg[cyan]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
+     # Banner
+     if [[ -n $doc ]]; then local docstr=" :: $doc"; fi
+     if [[ $orig_package =~ '^basics' ]]; then bootstrap=' (bootstrapper)'; fi
+     if ! [[ -v invalid_os ]]
+     then print "\n$fg_bold[yellow]${(U)package}$bootstrap$reset_color$fg[yellow]$docstr$reset_color"
+     else return
+     fi
+     if [[ -n $rec[details] ]]; then print "$fg[yellow]ⓘ More details: $reset_color$rec[details]"; fi
+     if [[ -n $invalid_os ]]
+          # print "$fg[cyan]◊$reset_color Nothing to do with $rec[osfam] on this system ($osfam)"
+     then print 'STOP PRINTING THIS'
           return
      fi
      # TODO Parse depcmds as csv
@@ -316,12 +303,13 @@ process () {
                doaction $action $package "cd $unidir && $rec[uni]"
 
           ### DEFAULT UNSPECIFIED
-          else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
+          # else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default: $mgrcmd$reset_color"
+          else print "$fg[cyan][DEFAULT] No explicit package instuctions; using system default$reset_color"
                doaction $action $package "$mgrcmd $package"
           fi
 
           if   [[ -n $earlyexit ]]
-          then print "$fg_bold[magenta]◊$reset_color Proceeding past $action"
+          then print "$fg_bold[magenta]◊$reset_color Canceling $action"
                rehash
                return
           fi
@@ -376,16 +364,34 @@ convert_toml () {
      print -- $shstr
 }
 
+enable_recipes () {
+     # recipes=( $(grep '^[a-z_]\+=(' $config | sed 's/=(.*//') )
+     bootstrappers=( basics_essentials basics_brew basics_git basics_zip basics_unzip
+                     basics_curl basics_wget basics_podman basics_lsbrelease basics_eget )
+     # recipes=( $bootstrappers $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//') )
+     recipes=( $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//') )
+
+     local active_bootstrappers=()
+     for bb in ${(Oa)bootstrappers} # reverse order since pushing onto recipes in loop
+     do  b=${bb#basics_}
+         # print $bb :: $b ::
+         if grep -q $b $config && ! type $b >/dev/null
+         then print "Adding bootstrapper candidate since detected in recipe and not yet installed: $b"
+              # active_bootstrappers+=$bb
+              recipes=( $bb $recipes )
+         fi
+     done
+     print "Active recipes from bootstrap and $config:\n  $recipes"
+}
+
 main () {
      setosfam
-     print "Detected OS Family: $osfam, system package manager: $mgr"
+     print "Detected OS Family: ${fg_bold[green]}$osfam$reset_color, system package manager: ${fg_bold[green]}$mgr$reset_color"
      # convert_toml; exit # remove, for debugging
-     # install_basics
+     enable_recipes
      eval "$(convert_toml)"
      # print bbin: $bbin[doc]
-     for rec in $recipes
-     do process $rec
-     done
+     for rec in $recipes; do process $rec; done
      print '\n————————————————————————————————————————————————————————————————————————'
      print "${bold_color}### SUMMARY$reset_color"
      if (( $#summary_installs > 0 )); then print "\nThe following packages were installed:"; fi
