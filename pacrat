@@ -130,7 +130,7 @@ vercompare () {
      if   [[ $vercur == $vermin ]]
      then print "Detected vercur == vermin ($vercur)"
           return
-     else print "Detected your current installed version ‘$vercur’ is newer than vermin ‘$vermin’"
+     else print "Detected your current installed version ‘$vercur’ does not match vermin ‘$vermin’"
           curnewer=1
      fi
      vercura=( $( sed -r 's/[._-]/ /g' <<< $vercur ) )
@@ -140,12 +140,16 @@ vercompare () {
           # Default each to zero to accommodate for diff lengths
           if   (( ${vercura[$i]-0} > ${vermina[$i]-0} ))
           then print "You may want to update ‘$config’ for ‘[$package]’ to ‘vermin = $vercur’"
+               # TODO #13
+               read -qk "?[FAKEFEATURE] Would you like me to add that to your $config now? [y/n] "
+               # sed -i ...
                return
           elif (( $vercura[$i] == $vermina[$i] ))
           then dbg eq
                continue
           elif (( $vercura[$i] < $vermina[$i] ))
           then dbg 'current version outdated; need upgrade'
+               print "Your version is too old"
                return 2
           fi
      done
@@ -236,7 +240,9 @@ process () {
      then # FIXME Don't say up-to-date or green-check unless we know there was no vermin warning
           if [[ -v curnewer ]]
           then print "$fg_bold[magenta]♻$reset_color Already installed but newer than version in $config$reset_color"
-          else print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
+
+          else # TODO don't say up-to-date unless version check was done
+               print "$fg_bold[green]✓$reset_color Already installed and up-to-date$reset_color"
                return
           fi
 
@@ -397,9 +403,10 @@ main () {
      if (( $#summary_installs > 0 )); then print "\nThe following packages were installed:"; fi
      for inst in $summary_installs; do print -- "$fg_bold[green]+ $inst$reset_color"; done
      if (( $#summary_upgrades > 0 )); then print "\nThe following packages were upgraded:"; fi
-     for upg  in $summary_upgrades; do print -- "fg_bold[cyan]♻ $upg$reset_color"; done
+     for upg  in $summary_upgrades; do print -- "$fg_bold[cyan]♻ $upg$reset_color"; done
      if (( $#instructions > 0 )); then print "\nThe following still likely need action:"; fi
      for i in $instructions; do print $i; done
+     # TODO if no installs, upgrades, instructions: print "Nothing was done"
      print "\nYou may need to ‘rehash’ now to see newly installed commands."
 }
 

@@ -1,31 +1,42 @@
 # Pacrat
 
-> A minimal yet flexible general-purpose package manager for a variety of
+> A minimal yet flexible **general-purpose package manager** for a variety of
 > package types and OSs, geared toward installing and upgrading any CLI tool.
+> Based on a single, shareable manifest INI file.
 
 <img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
 
-Pacrat does either of two simple things for any CLI-oriented package, depending on
-their state:
+Pacrat does either of two simple things for any CLI-oriented package listed in
+a `Nestfile`, depending on their state:
 
 - _install_
 - _upgrade_
 
+What is a package? Almost anything!
+
 ## How it works
 
-Pacrat utilizes your OS's underlying package manager (dnf, apt, brew, etc),
+Pacrat utilizes your OS's base package manager (dnf, apt, brew, etc),
 and also enables installation via [`eget`](https://github.com/zyedidia/eget),
 `git-clone`, `docker/podman`, plus ad hoc via `curl/wget`, `gem`, `pip`,
 whatever. This means that your team of developers can be spread across several
-OSs and not have to worry about tooling.
+OSs and not have to worry about what/how to install/update tooling.
 
-Pacrat's big value is in checking (invoking) each package to glean its version
-and comparing against _vermin_ to ensure that tooling is consistent
+One of Pacrat's big values is in checking (invoking) each package to glean its
+version and compare against _vermin_ to ensure that tooling is consistent
 (up-to-date) across any machines that share a Nestfile.
 
-This makes Pacrat a good tool for use in a `post-checkout` git-hook. So you
-may want to set that up with something like
-[Captain](https://github.com/MicahElliott/captain).
+Another great thing about Pacrat (much thanks to EGET and git) is that it
+opens up the ability for any developer to throw a script/exe (or several) into
+a tarball/zip or repo, post it as a Github "release", add it to the team
+Nestfile with an `eget` or `clone` directive — and now the whole team is
+immediately using the new tool without being told to do anything.
+
+This makes Pacrat a tool well suited for use in a
+[`post-checkout`](https://git-scm.com/docs/githooks#_post_checkout) git-hook.
+So you likely want to set that up with something like
+[Captain](https://github.com/MicahElliott/captain) or
+[Lefthook](https://github.com/evilmartians/lefthook).
 
 ### Literate/executable setup doc
 
@@ -92,15 +103,11 @@ That section shows a package named `clj-kondo` and that:
 
 - The installed command (`cmd`) is `clj-kondo`, which will be installed if not
   already present (or upgraded depending on `vermin`)
-
 - On any _Linux_ system, `curl` is used to fetch and run an installer script
-
 - On a _Macos_ system, a simple `brew install ...` is used
-
 - The _version_ (`verget`) is obtained by running the tool and a little
   cut-parsing (though `pacrat` almost always can auto-infer it, so `verget` is
   rarely needed)
-
 - An upgrade may be performed if the presently installed version is older
   (gleaned version is older than `vermin`)
 
