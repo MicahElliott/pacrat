@@ -267,7 +267,7 @@ quickly.
 
 ## Demo
 
-<img title="Pacrat Live Demo" src="https://vhs.charm.sh/vhs-iYG1BMmRiBkp8rT1eefkT.gif">
+![Pacrat live demo](https://vhs.charm.sh/vhs-3PxanGM8jras0Xe39epBv4.gif) (via vhs)
 
 <img title="Pacrat Demo 1" src="./demo1.png">
 <img title="Pacrat Demo 2" src="./demo2.png">

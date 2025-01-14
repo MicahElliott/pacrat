@@ -8,28 +8,24 @@ Require echo
 Set Shell "zsh"
 Set FontSize 12
 Set Width 1000
-Set Height 700
+Set Height 600
+Set CursorBlink false
 
 Type ": This is Pacrat!"
 Enter
 Sleep 500ms
 
-Type "bat demo.ini"
+Type "bat --paging never demo.ini"
 Sleep 2
 Enter
 Sleep 5
 
-Type ": A few things are already installed at this point."
-Enter
-Sleep 2
-Enter
-
 Type "PACRAT_NONINTERACTIVE=1 PACRAT_NESTFILE=demo.ini ./pacrat"
 # Type "PACRAT_NESTFILE=demo.ini ./pacrat"
 Enter
-Sleep 32s
+Sleep 29s
 
 Type "fastfetch"
 Enter
 
-Sleep 3s
+Sleep 2s
