@@ -96,7 +96,7 @@ setosfam () {
      then lsbos=$(lsb_release -is | tail -1)
          case $lsbos in
                RedHat|Fedora|Centos)
-                    osfam='redhat' mgr=dnf    mgrcmd='sudo dnf install' ;;
+                    osfam='redhat' mgr=dnf    mgrcmd='sudo dnf -y install' ;;
                Debian|Ubuntu|Kali|Purism|Tails)
                     osfam='debian' mgr=apt    mgrcmd='sudo apt install' ;;
                Arch|Manjaro)
@@ -163,9 +163,12 @@ vercompare () {
 doaction() {
      # print "$fg[cyan][BREW] Doing $action $package with brew$reset_color"
      local thisaction="$1" thispackage="$2" runnable="$3" # "brew $action $package"
+     local ispostop="$4" # no recording on post-op
      print "$fg_bold[magenta]>>>$reset_color ${bold_color}$runnable$reset_color"
+     if [[ -v PACRAT_DEMOMODE ]]; then sleep 2; fi
      if [[ -v PACRAT_DRYRUN ]]; then return; fi
-     if   [[ -v PACRAT_NONINTERACTIVE ]] || ! read -qk '?Proceed? [y/n] '
+     # if ! read -qk '?Proceed? [y/n] '
+     if   [[ -z $PACRAT_NONINTERACTIVE ]] && ! read -qk '?Proceed? [y/n] '
      # then print '\nSkipping'; earlyexit=1; return
      then print; earlyexit=1; return
      fi
@@ -174,6 +177,8 @@ doaction() {
      if ! eval $runnable
      then print "$fg[red]XXX  ENCOUNTERED ERROR  XXX$reset_color"
           earlyexit=2; return 2
+     elif [[ -n $ispostop ]]
+     then rehash; return # or could just dedupe summaries
      else if   [[ $thisaction == 'install' ]]; then summary_installs+="$thispackage"
           elif [[ $thisaction == 'upgrade' ]]; then summary_upgrades+="$thispackage"
           else print "XXX UNREGISTERED ACTION"
@@ -268,7 +273,7 @@ process () {
                doaction $action $package "brew $action $rec[brew]"
           elif [[ $osfam == redhat ]] && [[ -n $rec[dnf] ]]
           then print "$fg[cyan][DNF] Doing $action $package with dnf$reset_color"
-               doaction $action $package "sudo dnf $action $rec[dnf]"
+               doaction $action $package "sudo dnf -y $action $rec[dnf]"
           elif [[ $osfam == debian ]] && [[ -n $rec[apt] ]]
           then print "$fg[cyan][APT] Doing $action $package with apt$reset_color"
                doaction $action $package "sudo apt $action $rec[apt]"

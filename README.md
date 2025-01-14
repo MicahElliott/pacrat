@@ -219,13 +219,13 @@ want your own checkout to be different. For this, you can use the CSV env var
 ## Options
 
 - `PACRAT_NESTFILE` — `.ini` file location
-- `PACRAT_IGNORES` — CSV of packages to be ignored in `nest.ini`
 - `PACRAT_NONINTERACTIVE` — set to anything to not be prompted before making changes
 - `PACRAT_DRYRUN` — run without executing any install/upgrade commands
 - `PACRAT_BASE` — base directory for clones, archives, etc (default `~/.pacrat`)
-- `PACRAT_CLONE` — directory for git-clones (default `$PACRAT_BASE/clone`)
-- `PACRAT_UNI` — directory for archives/extractions (default `$PACRAT_BASE/uni`)
 - `PACRAT_BIN` — directory for binaries from eget (default `~/.local/bin`)
+- `PACRAT_CLONE` — directory for git-clones (default `$PACRAT_BASE/clone`)
+- `PACRAT_UNI` — directory for universal archives/extractions (default `$PACRAT_BASE/uni`)
+- `PACRAT_IGNORES` — CSV of packages to be ignored in `nest.ini`
 
 ## Experimenting with OSs you use
 
@@ -266,6 +266,8 @@ quickly.
 - zplug/zinit
 
 ## Demo
+
+<img title="Pacrat Live Demo" src="https://vhs.charm.sh/vhs-iYG1BMmRiBkp8rT1eefkT.gif">
 
 <img title="Pacrat Demo 1" src="./demo1.png">
 <img title="Pacrat Demo 2" src="./demo2.png">
