@@ -1,8 +1,9 @@
 # Pacrat
 
 > A minimal yet flexible **general-purpose package manager** for a variety of
-> package types and OSs, geared toward installing and upgrading any CLI tool.
-> Based on a single, shareable manifest INI file.
+> package types and OSs, geared toward installing and upgrading any CLI tool
+> on any system. Based on a simple, single, shareable manifest INI file. Say
+> goodbye to installation guides.
 
 <img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
 
@@ -57,7 +58,7 @@ Other anti-features:
 - no version pinning — just a minimum (`vermin`), to allow for native manager upgrades
 - no uninstalls (for now)
 - no writing to the Nestfile (for now, but may feature prompting to update `vermin`)
-- no dependency logic: if you want Clojure, it's on you to specify Java before it
+- no dependency logic: eg, if you want Clojure, it's on you to specify Java before it
 
 ## Installation
 
@@ -267,7 +268,7 @@ quickly.
 
 ## Demo
 
-![Pacrat live demo](https://vhs.charm.sh/vhs-3PxanGM8jras0Xe39epBv4.gif) (via vhs)
+![Pacrat live demo](https://vhs.charm.sh/vhs-3PxanGM8jras0Xe39epBv4.gif) (via [vhs](https://github.com/charmbracelet/vhs))
 
 <img title="Pacrat Demo 1" src="./demo1.png">
 <img title="Pacrat Demo 2" src="./demo2.png">

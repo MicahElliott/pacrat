@@ -15,6 +15,7 @@
 
 autoload -U colors; colors
 
+# Config can be an INI file, or literate markdown
 # config=example.zsh
 # config=tiny.ini
 config=${PACRAT_NESTFILE-nest.ini}
@@ -38,8 +39,6 @@ do if ! [[ -d $d ]]; then print "Creating new dir: $d"; mkdir -p $d; fi
 done
 
 if [[ -v PACRAT_DRYRUN ]]; then print "Running in dry-run no-op mode"; fi
-
-print "Sourcing config file: $fg_bold[green]$config$reset_color"
 
 # Maybe can't even start running without this, so remove??
 declare -A basics_lsbrelease=( name 'lsbrelease'
@@ -179,6 +178,7 @@ doaction() {
           earlyexit=2; return 2
      elif [[ -n $ispostop ]]
      then rehash; return # or could just dedupe summaries
+          # TODO add what type of install it was: eget, dnf, clone
      else if   [[ $thisaction == 'install' ]]; then summary_installs+="$thispackage"
           elif [[ $thisaction == 'upgrade' ]]; then summary_upgrades+="$thispackage"
           else print "XXX UNREGISTERED ACTION"
@@ -361,7 +361,7 @@ process () {
 
 convert_toml () {
      shstr=$(
-          sed -r '/^#+/d' $config |
+          sed -r '/^#+/d' <<< $configstr |
                sed -r 's/ # .*//' | # fully remove comment lines
                sed -e '/^$/N' -e '/^\n$/D' | # Reduce multiple empty lines down to single # https://stackoverflow.com/a/4522043/326516
                sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n\+/\n)\n/g'  | # multiline sub with ending ) # https://stackoverflow.com/a/1252191/326516
@@ -375,20 +375,18 @@ convert_toml () {
      print -- $shstr
 }
 
+# Set up bootstrap recipes and prepend to user recipes
 enable_recipes () {
-     # recipes=( $(grep '^[a-z_]\+=(' $config | sed 's/=(.*//') )
      bootstrappers=( basics_essentials basics_brew basics_git basics_zip basics_unzip
                      basics_curl basics_wget basics_podman basics_lsbrelease basics_eget )
-     # recipes=( $bootstrappers $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//') )
-     recipes=( $(grep -E '^\[[a-z_-]+\]' $config  | sed 's/ #.*//g;s/\[//;s/\]//') )
+     recipes=( $(grep -E '^\[[a-z_-]+\]' <<< $configstr | sed 's/ #.*//g;s/\[//;s/\]//') )
 
      local active_bootstrappers=()
      for bb in ${(Oa)bootstrappers} # reverse order since pushing onto recipes in loop
      do  b=${bb#basics_}
          # print $bb :: $b ::
-         if grep -q $b $config && ! type $b >/dev/null
+         if grep -q $b <<< $configstr && ! type $b >/dev/null
          then print "Adding bootstrapper candidate since detected in recipe and not yet installed: $b"
-              # active_bootstrappers+=$bb
               recipes=( $bb $recipes )
          fi
      done
@@ -398,9 +396,23 @@ enable_recipes () {
 main () {
      setosfam
      print "Detected OS Family: ${fg_bold[green]}$osfam$reset_color, system package manager: ${fg_bold[green]}$mgr$reset_color"
-     # convert_toml; exit # remove, for debugging
+     print -n "Sourcing config file: $fg_bold[green]$config$reset_color"
+     if [[ $config:e == 'md' ]]
+     then print " (literate markdown config)"
+          configstr=$( grep -Pzo '```ini *(\n|.)*?\n```' $config | sed 's/```.*//' )
+     else print
+          configstr=$( cat $config )
+     fi
      enable_recipes
-     eval "$(convert_toml)"
+     # convert_toml |nl; exit # remove, for debugging
+     # convert_toml ; exit # remove, for debugging
+     # TODO validate input before eval
+     if ! eval "$(convert_toml)"
+     then print "Detected error in $config; please fix and retry. Here is the problematic config:"
+          convert_toml |nl
+          exit
+     fi
+     # print status: $?
      # print bbin: $bbin[doc]
      for rec in $recipes; do process $rec; done
      print '\n————————————————————————————————————————————————————————————————————————'
