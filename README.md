@@ -1,11 +1,11 @@
 # Pacrat
 
+<img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
+
 > A minimal yet flexible **general-purpose package manager** for a variety of
 > package types and OSs, geared toward installing and upgrading any CLI tool
 > on any system. Based on a simple, single, shareable manifest INI file. Say
 > goodbye to installation guides.
-
-<img align="right" width="120" height="120" title="Pacrat logo" src="./logo1.png">
 
 Pacrat does either of two simple things for any CLI-oriented package listed in
 a `Nestfile`, depending on their state:

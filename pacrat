@@ -364,7 +364,7 @@ convert_toml () {
           sed -r '/^#+/d' <<< $configstr |
                sed -r 's/ # .*//' | # fully remove comment lines
                sed -e '/^$/N' -e '/^\n$/D' | # Reduce multiple empty lines down to single # https://stackoverflow.com/a/4522043/326516
-               sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\n\+/\n)\n/g'  | # multiline sub with ending ) # https://stackoverflow.com/a/1252191/326516
+               sed -r -e ':a' -e 'N' -e '$!ba' -e 's/\n\n+/\n)\n/g'  | # multiline sub with ending ) # https://stackoverflow.com/a/1252191/326516
                sed -r -e 's/\[([a-z0-9_-]+)\]/declare  \1\\=(\nname \1/'  | # add declare and line after with lowername
                sed -r -e '/^declare  /s/-/_/g'  | # convert - to _
                sed -r -e 's/^declare  /declare -A /'  | # add a -A
