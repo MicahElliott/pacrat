@@ -62,14 +62,14 @@ Other anti-features:
 
 ## Installation
 
-Pacrat is just [a single `pacrat` script](./pacrat) that you can grab and put
+Pacrat is just [a single `pacrat` script](./bin/pacrat) that you can grab and put
 on your `$PATH`.
 
 ```shell
 mkdir -p ~/.local/bin
 path+=~/.local/bin
 cd ~/.local/bin # assuming this is on your PATH
-curl -o pacrat https://raw.githubusercontent.com/MicahElliott/pacrat/refs/heads/main/pacrat
+curl -o pacrat https://raw.githubusercontent.com/MicahElliott/pacrat/refs/heads/main/bin/pacrat
 chmod +x pacrat
 ```
 
